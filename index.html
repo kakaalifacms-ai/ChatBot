@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chat Bot Tanya</title>
+  <style>
+    :root{
+      --bg:#f3f4f6; --card:#ffffff; --bot:#eef2ff; --user:#e6ffef;
+      --muted:#666; font-family:Inter,Segoe UI,Roboto,Arial;
+    }
+    body{margin:0;background:var(--bg);display:flex;align-items:center;justify-content:center;height:100vh;padding:20px}
+    .chat-card{width:420px;max-width:100%;background:var(--card);box-shadow:0 8px 30px rgba(2,6,23,0.08);border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
+    .header{padding:16px 18px;border-bottom:1px solid #eee;font-weight:600}
+    .messages{padding:16px;flex:1;overflow:auto;display:flex;flex-direction:column;gap:10px;background:linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0)) }
+    .msg{max-width:82%;padding:10px 12px;border-radius:12px;line-height:1.3;box-shadow:0 1px 0 rgba(0,0,0,0.02)}
+    .bot{align-self:flex-start;background:var(--bot);border:1px solid rgba(90,80,255,0.06)}
+    .user{align-self:flex-end;background:var(--user);border:1px solid rgba(0,160,0,0.06)}
+    .meta{font-size:12px;color:var(--muted);margin-top:6px}
+    .composer{display:flex;padding:12px;border-top:1px solid #eee;gap:8px}
+    .composer input{flex:1;padding:10px 12px;border-radius:10px;border:1px solid #ddd;font-size:14px}
+    .composer button{padding:10px 14px;border-radius:10px;border:0;background:#5b21b6;color:#fff;font-weight:600;cursor:pointer}
+    .options{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+    .opt-btn{background:transparent;border:1px solid #ddd;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:13px}
+    .typing{font-style:italic;color:var(--muted);font-size:13px;margin-left:6px}
+    .small{font-size:12px;color:#999}
+  </style>
+</head>
+<body>
+  <div class="chat-card" role="region" aria-label="Chat bot tanya">
+    <div class="header">Chat Bot — Tanya & Jawab</div>
+
+    <div id="messages" class="messages" aria-live="polite"></div>
+
+    <div class="composer" aria-hidden="false">
+      <input id="input" type="text" placeholder="Ketik jawaban atau klik salah satu opsi..." />
+      <button id="sendBtn">Kirim</button>
+    </div>
+  </div>
+
+  <script>
+    // Simple stateful chatbot that initiates questions and branches.
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('input');
+    const sendBtn = document.getElementById('sendBtn');
+
+    // State
+    const state = {
+      stage: 0,     // which question we're on
+      name: null,
+      topic: null
+    };
+
+    // utility to add message
+    function addMessage(text, who='bot', meta='') {
+      const el = document.createElement('div');
+      el.className = 'msg ' + (who==='bot' ? 'bot' : 'user');
+      el.innerHTML = `<div>${escapeHtml(text)}</div>`;
+      if(meta) el.innerHTML += `<div class="meta">${escapeHtml(meta)}</div>`;
+      messagesEl.appendChild(el);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function addTypingIndicator() {
+      const t = document.createElement('div');
+      t.className = 'msg bot typing';
+      t.id = 'typing';
+      t.textContent = 'Mengetik...';
+      messagesEl.appendChild(t);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+    function removeTypingIndicator() {
+      const t = document.getElementById('typing');
+      if(t) t.remove();
+    }
+
+    // simple sanitizer
+    function escapeHtml(s){
+      if(!s) return '';
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // bot reply with simulated delay
+    function botReply(text, meta='', delay=700) {
+      removeTypingIndicator();
+      addTypingIndicator();
+      setTimeout(() => {
+        removeTypingIndicator();
+        addMessage(text, 'bot', meta);
+      }, delay);
+    }
+
+    // initial bot greeting & first question
+    function startConversation(){
+      botReply("Halo! Aku bot tanya. Boleh tahu namamu?", "Pertanyaan 1 dari 3", 600);
+      state.stage = 1;
+    }
+
+    // handle user input
+    function handleUser(text){
+      text = text?.trim();
+      if(!text) return;
+      addMessage(text, 'user');
+      inputEl.value = '';
+
+      // Branching based on stage
+      if(state.stage === 1){
+        // capture name
+        state.name = text.split(' ')[0]; // ambil kata pertama
+        botReply(`Senang bertemu, ${state.name}! Kamu mau ngobrol tentang apa? Pilih salah satu:`, '', 600);
+        setTimeout(() => showOptions(['Belajar (soal)', 'Gurauan (lelucon)', 'Bantuan']), 650);
+        state.stage = 2;
+      } else if(state.stage === 2){
+        // topic selection by text
+        const t = text.toLowerCase();
+        if(t.includes('belajar') || t.includes('soal') || t.includes('latihan')){
+          state.topic = 'belajar';
+          askStudy();
+        } else if(t.includes('gurau') || t.includes('joke') || t.includes('lelucon')){
+          state.topic = 'gurauan';
+          tellJoke();
+        } else if(t.includes('bantu') || t.includes('help')){
+          state.topic = 'bantuan';
+          offerHelp();
+        } else {
+          // fallback
+          botReply("Maaf, aku belum mengerti. Pilih salah satu opsi di bawah atau ketik 'Belajar', 'Gurauan', atau 'Bantuan'.", '', 500);
+          setTimeout(() => showOptions(['Belajar (soal)', 'Gurauan (lelucon)', 'Bantuan']), 520);
+        }
+      } else if(state.stage === 3 && state.topic === 'belajar'){
+        // simple math check
+        const num = parseFloat(text);
+        if(!isNaN(num)){
+          const correct = 7 + 5; // contoh soal
+          if(Math.abs(num - correct) < 1e-6){
+            botReply("Betul! Jawaban 12. Mau soal lain?", '', 600);
+            setTimeout(()=>showOptions(['Ya, soal lagi','Tidak, terima kasih']),650);
+          } else {
+            botReply("Hmm, belum tepat. Coba lagi atau minta hint.", '', 600);
+            setTimeout(()=>showOptions(['Hint','Coba lagi']),650);
+          }
+        } else {
+          botReply("Ketik angka sebagai jawaban, atau pilih opsi.", '', 600);
+          setTimeout(()=>showOptions(['Hint','Coba lagi','Lewati']),650);
+        }
+      } else if(state.stage === 3 && state.topic === 'gurauan'){
+        botReply("Hehe 😄 Kalau mau lagi, ketik 'lagi' atau pilih opsi.", '', 500);
+        setTimeout(()=>showOptions(['lagi','menu utama']),520);
+      } else {
+        // default fallback: echo with suggestion
+        botReply("Terima kasih. Mau kembali ke menu utama? Ketik 'menu' atau 'ulang'.", '', 600);
+        setTimeout(()=>showOptions(['menu utama','keluar']),650);
+      }
+    }
+
+    // show clickable options under composer
+    function showOptions(arr){
+      // remove existing options if any
+      const existing = document.querySelector('.options');
+      if(existing) existing.remove();
+
+      const container = document.createElement('div');
+      container.className = 'options';
+      arr.forEach(o=>{
+        const btn = document.createElement('button');
+        btn.className = 'opt-btn';
+        btn.type = 'button';
+        btn.textContent = o;
+        btn.onclick = ()=> {
+          // simulate typing the option as user input
+          inputEl.value = o;
+          handleUser(o);
+          container.remove();
+        };
+        container.appendChild(btn);
+      });
+      // attach under composer
+      const composer = document.querySelector('.composer');
+      composer.appendChild(container);
+    }
+
+    // example flows
+    function askStudy(){
+      botReply("Oke, kita mulai. Berapakah 7 + 5 ?", "Soal 1 dari 1", 700);
+      state.stage = 3;
+      state.topic = 'belajar';
+    }
+    function tellJoke(){
+      botReply("Kenapa buku matematika sedih? Karena banyak masalahnya. 😅 Mau yang lain?", '', 700);
+      state.stage = 3;
+    }
+    function offerHelp(){
+      botReply("Aku bisa bantu: (1) buat soal latihan, (2) beri tips belajar, (3) bantu debug HTML/JS sederhana. Kamu pilih nomor atau ketik '1','2', atau '3'.", '', 700);
+      setTimeout(()=>showOptions(['1','2','3']),750);
+      state.stage = 3;
+    }
+
+    // send button and Enter key
+    sendBtn.addEventListener('click', ()=> handleUser(inputEl.value));
+    inputEl.addEventListener('keydown', (e)=> {
+      if(e.key === 'Enter') {
+        e.preventDefault();
+        handleUser(inputEl.value);
+      }
+    });
+
+    // start
+    startConversation();
+
+    // small: allow initial options after greeting timeout
+    // (No server calls; all local)
+  </script>
+</body>
+</html>
